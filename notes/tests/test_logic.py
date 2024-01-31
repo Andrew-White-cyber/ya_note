@@ -46,7 +46,7 @@ class TestNotesCreation(TestCase):
         notes_count = Note.objects.count()
         self.assertEqual(notes_count, 1)
 
-    def test_reader_cant_delete_edit_alien_notes(self):
+    def test_reader_cant_delete_edit_notes_of_other_user(self):
         response = self.auth_reader.delete(self.url_delete)
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
         notes_count = Note.objects.count()
