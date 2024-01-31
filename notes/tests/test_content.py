@@ -1,14 +1,9 @@
 from django.urls import reverse
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from django.conf import settings
-from django.db.utils import IntegrityError
-
-import unittest
-
-from datetime import datetime, timedelta
 
 from notes.models import Note
+from notes.forms import NoteForm
 
 User = get_user_model()
 
@@ -18,40 +13,41 @@ class TestNotes(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        cls.author = User.objects.create(username='author')
+        cls.url = reverse('notes:list')
+        cls.url_add = reverse('notes:add')
+        cls.author = User.objects.create(username='Автор')
+        cls.user = User.objects.create(username='User')
         cls.note = Note.objects.create(
             title='test_title',
             text='test_text',
             author=cls.author
-        )  # Создали новость без слага.
-        cls.note_slug = Note.objects.create(
-            title='test',
-            text='test',
-            author=cls.author,
-            slug='test'
         )
+        cls.url_edit = reverse('notes:edit', args=(cls.note.slug,))
 
-    def test_note_has_slug_anyway(self):
-        self.assertTrue(self.note.slug)
-
-    def test_authorized_client_has_form(self):
+    def test_note_in_list_for_author(self):
+        """Заметка передаётся в контексте для автора."""
         self.client.force_login(self.author)
-        # Авторизуем клиент при помощи ранее созданного пользователя.
-        urls_args = (
-            ('notes:add', None),
-            ('notes:edit', (self.note.slug,)),
-        )
-        for url, arg in urls_args:
-            with self.subTest(url=url):
-                addres = reverse(url, args=arg)
-                response = self.client.get(addres)
-                self.assertIn('form', response.context)
+        response = self.client.get(self.url)
+        object_list = response.context['object_list']
+        assert self.note in object_list
 
-    def test_uniq_slug(self):
-        with self.assertRaises(IntegrityError):
-            self.another_note = Note.objects.create(
-                title='test_title',
-                text='test_text',
-                author=self.author,
-                slug='test'
-            )
+    def test_note_not_in_list_for_another_user(self):
+        """Заметка не передаётся в контексте если не автор."""
+        self.client.force_login(self.user)
+        response = self.client.get(self.url)
+        object_list = response.context['object_list']
+        assert self.note not in object_list
+
+    def test_create_note_page_contains_form(self):
+        """Страница создания заметки содержит форму."""
+        self.client.force_login(self.author)
+        response = self.client.get(self.url_add)
+        assert 'form' in response.context
+        assert isinstance(response.context['form'], NoteForm)
+
+    def test_edit_note_page_contains_form(self):
+        """Страница редактирования заметки содержит форму."""
+        self.client.force_login(self.author)
+        response = self.client.get(self.url_edit)
+        assert 'form' in response.context
+        assert isinstance(response.context['form'], NoteForm)
